@@ -97,3 +97,20 @@ FLASK_DEBUG=1
 Only do this on your own computer: the debug error pages let anyone who can reach the app run code on it.
 
 When you're finished, run `deactivate` to leave the virtual environment.
+
+## Running the tests
+
+The tests use [pytest](https://docs.pytest.org/). With the virtual environment activated, run all of them with:
+
+```
+pytest
+```
+
+To run one file, or one test in it:
+
+```
+pytest tests/test_actors.py
+pytest tests/test_actors.py::test_add_actor
+```
+
+The tests connect to the same MySQL database as the app, using the settings in your `.env` file, so MySQL must be running. Every actor a test adds has the last name `PYTEST-TEMP` and is deleted when the test finishes, so your sakila data is left as it was.
