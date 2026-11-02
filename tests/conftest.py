@@ -20,9 +20,14 @@ def app():
     flask_app.config['TESTING'] = True
     with flask_app.app_context():
         yield flask_app
-        # Clean up any actors the test added
-        db.session.rollback()
-        db.session.execute(delete(Actor).where(Actor.last_name == TEST_LAST_NAME))
+
+@pytest.fixture
+def created_actor_ids(app):
+    actor_ids = []
+    yield actor_ids
+    db.session.rollback()
+    if actor_ids:
+        db.session.execute(delete(Actor).where(Actor.actor_id.in_(actor_ids)))
         db.session.commit()
 
 # A test client sends requests to the app without starting a server

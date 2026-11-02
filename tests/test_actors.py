@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from sqlalchemy import func, select, text
 
 from app import MAX_NAME_LENGTH
@@ -24,43 +26,58 @@ def test_get_actors_returns_json(client):
 
 # ADDING AN ACTOR
 
-def test_add_actor(csrf_client):
+def test_add_actor(csrf_client, created_actor_ids):
+    actor_count = count_test_actors()
+    first_name = f'Ada-{uuid4().hex[:12]}'
     response = csrf_client.post('/add', data={
-        'first_name': 'Ada',
+        'first_name': first_name,
         'last_name': TEST_LAST_NAME,
         'csrf_token': CSRF_TOKEN,
     })
+    actor_id = db.session.scalar(
+        select(Actor.actor_id).where(
+            Actor.first_name == first_name,
+            Actor.last_name == TEST_LAST_NAME,
+        )
+    )
+    if actor_id is not None:
+        created_actor_ids.append(actor_id)
     assert response.status_code == 302
-    assert count_test_actors() == 1
+    assert actor_id is not None
+    assert count_test_actors() == actor_count + 1
 
 def test_add_actor_with_blank_name_is_rejected(csrf_client):
+    actor_count = count_test_actors()
     response = csrf_client.post('/add', data={
         'first_name': '   ',
         'last_name': TEST_LAST_NAME,
         'csrf_token': CSRF_TOKEN,
     }, follow_redirects=True)
     assert b'Please enter both a first name and a last name.' in response.data
-    assert count_test_actors() == 0
+    assert count_test_actors() == actor_count
 
 def test_add_actor_with_long_name_is_rejected(csrf_client):
+    actor_count = count_test_actors()
     response = csrf_client.post('/add', data={
         'first_name': 'A' * (MAX_NAME_LENGTH + 1),
         'last_name': TEST_LAST_NAME,
         'csrf_token': CSRF_TOKEN,
     }, follow_redirects=True)
     assert b'Names can be at most' in response.data
-    assert count_test_actors() == 0
+    assert count_test_actors() == actor_count
 
 # DELETING AN ACTOR
 
-def test_delete_actor(csrf_client):
+def test_delete_actor(csrf_client, created_actor_ids):
+    actor_count = count_test_actors()
     actor = Actor(first_name='Ada', last_name=TEST_LAST_NAME, last_update=func.now())
     db.session.add(actor)
     db.session.commit()
+    created_actor_ids.append(actor.actor_id)
 
     response = csrf_client.post(f'/delete/{actor.actor_id}', data={'csrf_token': CSRF_TOKEN})
     assert response.status_code == 302
-    assert count_test_actors() == 0
+    assert count_test_actors() == actor_count
 
 def test_delete_actor_in_films_shows_message(csrf_client):
     actor_id = db.session.scalar(text("SELECT actor_id FROM film_actor LIMIT 1"))
@@ -83,18 +100,20 @@ def test_delete_is_post_only(client):
 # CSRF PROTECTION
 
 def test_post_without_csrf_token_is_rejected(csrf_client):
+    actor_count = count_test_actors()
     response = csrf_client.post('/add', data={
         'first_name': 'Ada',
         'last_name': TEST_LAST_NAME,
     })
     assert response.status_code == 400
-    assert count_test_actors() == 0
+    assert count_test_actors() == actor_count
 
 def test_post_with_wrong_csrf_token_is_rejected(csrf_client):
+    actor_count = count_test_actors()
     response = csrf_client.post('/add', data={
         'first_name': 'Ada',
         'last_name': TEST_LAST_NAME,
         'csrf_token': 'wrong',
     })
     assert response.status_code == 400
-    assert count_test_actors() == 0
+    assert count_test_actors() == actor_count
